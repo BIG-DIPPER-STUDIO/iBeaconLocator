@@ -1,16 +1,14 @@
 package hk.bds.ibeaconlocator;
 
 import android.Manifest;
-import android.content.DialogInterface;
 import android.content.pm.PackageManager;
-import android.os.Build;
+import android.os.Bundle;
 import android.os.RemoteException;
 import android.speech.tts.TextToSpeech;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
-import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
-import android.os.Bundle;
+import android.util.Log;
 import android.widget.TextView;
 
 import org.altbeacon.beacon.Beacon;
@@ -20,16 +18,16 @@ import org.altbeacon.beacon.BeaconParser;
 import org.altbeacon.beacon.RangeNotifier;
 import org.altbeacon.beacon.Region;
 import org.altbeacon.beacon.service.RangedBeacon;
+import org.w3c.dom.Text;
 
+import java.text.DecimalFormat;
 import java.util.Collection;
 import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity implements BeaconConsumer {
 
-    protected static final String TAG = "MainActivity";
-
+    protected static final String TAG = "MainActivity"; // This is used for debug
     private MyBeacon b1, b2, b3, theNear;
-    private String currentLocation;
     private TextView displayName1,
             displayName2,
             displayName3,
@@ -38,23 +36,15 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer {
             displayDistance3,
             displayLocation;
     private BeaconManager beaconManager;
-    private Thread displayThread;
     private TextToSpeech ttobj;
     private MyBeacon previousLocation = null;
-    private static final int PERMISSION_REQUEST_COARSE_LOCATION = 1;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
-        beaconManager = BeaconManager.getInstanceForApplication(this);
-        beaconManager.getBeaconParsers().add(new BeaconParser().setBeaconLayout("m:2-3=0215,i:4-19,i:20-21,i:22-23,p:24-24"));
-        RangedBeacon.setSampleExpirationMilliseconds(50000);    // The refresh interval
-        beaconManager.bind(this);
-
-
 
         // Init displays
+        setContentView(R.layout.activity_main);
         displayName1 = (TextView) findViewById(R.id.beacon1);
         displayName2 = (TextView) findViewById(R.id.beacon2);
         displayName3 = (TextView) findViewById(R.id.beacon3);
@@ -63,72 +53,30 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer {
         displayDistance3 = (TextView) findViewById(R.id.distance3);
         displayLocation = (TextView) findViewById(R.id.location);
 
+        // Init Beacon
+        beaconManager = BeaconManager.getInstanceForApplication(this);
+        beaconManager.getBeaconParsers().add(new BeaconParser().setBeaconLayout("m:2-3=0215,i:4-19,i:20-21,i:22-23,p:24-24")); // Set the beacon brand
+        //beaconManager.setRssiFilterImplClass(ArmaRssiFilter.class);
+        RangedBeacon.setSampleExpirationMilliseconds(5000);    // The refresh interval
+        beaconManager.setBackgroundScanPeriod(20);
+        beaconManager.setBackgroundBetweenScanPeriod(10);
+        beaconManager.setForegroundBetweenScanPeriod(10);
+        beaconManager.bind(this);
+
         // Init beacon devices
-        b1 = new MyBeacon("Class Room", "BC:6A:29:27:68:B4", displayName1, displayDistance1);
-        b2 = new MyBeacon("Football Room", "BC:6A:29:25:14:01", displayName2, displayDistance2);
-        b3 = new MyBeacon("The Sky", "BC:6A:29:27:71:A9", displayName3, displayDistance3);
+        b1 = new MyBeacon("Room S505", "BC:6A:29:25:0F:52", displayName1, displayDistance1);
+        b2 = new MyBeacon("Room S506", "BC:6A:29:27:A4:2D", displayName2, displayDistance2);
+        b3 = new MyBeacon("Room S507", "BC:6A:29:28:01:BD", displayName3, displayDistance3);
 
-
-
-        ttobj=new TextToSpeech(getApplicationContext(), new TextToSpeech.OnInitListener() {
+        // Create Google TextToSpeech Object
+        ttobj = new TextToSpeech(getApplicationContext(), new TextToSpeech.OnInitListener() {
             @Override
             public void onInit(int status) {
                 if(status != TextToSpeech.ERROR) {
-                    ttobj.setLanguage(Locale.UK);
+                    ttobj.setLanguage(Locale.UK); // Set to "UK" language
                 }
             }
         });
-
-        //Get location permission
-        // Here, thisActivity is the current activity
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-
-            // Should we show an explanation?
-            if (ActivityCompat.shouldShowRequestPermissionRationale(thisActivity,
-                    Manifest.permission.READ_CONTACTS)) {
-
-                // Show an expanation to the user *asynchronously* -- don't block
-                // this thread waiting for the user's response! After the user
-                // sees the explanation, try again to request the permission.
-
-            } else {
-
-                // No explanation needed, we can request the permission.
-
-                ActivityCompat.requestPermissions(thisActivity,
-                        new String[]{Manifest.permission.READ_CONTACTS},
-                        MY_PERMISSIONS_REQUEST_READ_CONTACTS);
-
-                // MY_PERMISSIONS_REQUEST_READ_CONTACTS is an
-                // app-defined int constant. The callback method gets the
-                // result of the request.
-            }
-        }
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode,
-                                           String permissions[], int[] grantResults) {
-        switch (requestCode) {
-            case MY_PERMISSIONS_REQUEST_READ_CONTACTS: {
-                // If request is cancelled, the result arrays are empty.
-                if (grantResults.length > 0
-                        && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-
-                    // permission was granted, yay! Do the
-                    // contacts-related task you need to do.
-
-                } else {
-
-                    // permission denied, boo! Disable the
-                    // functionality that depends on this permission.
-                }
-                return;
-            }
-
-            // other 'case' lines to check for other
-            // permissions this app might request
-        }
     }
 
     @Override
@@ -139,33 +87,39 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer {
 
     @Override
     public void onBeaconServiceConnect() {
+        //This method will be called when the Beacon Manager is binded.
         beaconManager.setRangeNotifier( new RangeNotifier() {
             @Override
-            public void didRangeBeaconsInRegion(Collection<Beacon> beacons, Region region) { // This method will be executed many times.
+            public void didRangeBeaconsInRegion(Collection<Beacon> beacons, Region region) {
+                // This method will be executed many times according to the size of the refresh interval.
                 // Try to update the distance of the devices
-                b1.updateDistance(beacons);
-                b2.updateDistance(beacons);
-                b3.updateDistance(beacons);
+                for (Beacon theBeacon : beacons) {
+                    b1.updateDistance(theBeacon);
+                    b2.updateDistance(theBeacon);
+                    b3.updateDistance(theBeacon);
+                }
                 theNear = getMinOne(getMinOne(b1, b2), b3);
 
                 // Update Displays
-                MainActivity.this.runOnUiThread(new Runnable() {
+                MainActivity.this.runOnUiThread( new Runnable() {
                     public void run() {
-                        if (theNear != null && theNear.distance < 35d) {
-                            // You are now at theNear beacon
-                            displayLocation.setText(theNear.name);
+                        if (theNear != null && theNear.distance < 0.30) {
+                            // If the near beacon is inside the range, do this action
+                            displayLocation.setText(theNear.name); // Update the largest text.
 
                             if (theNear != previousLocation) {
-                                String toSpeak = "You are now at " + theNear.name;
-                                ttobj.speak(toSpeak, TextToSpeech.QUEUE_FLUSH, null);
+                                // If you just enter the area
+                                String toSpeak = "" + theNear.name;
+                                ttobj.speak(toSpeak, TextToSpeech.QUEUE_FLUSH, null); // Speak
                             }
 
                         } else {
-                            // You are not close enough
+                            // You are not close enough to the near one.
                             displayLocation.setText("UNCERTAIN");
                             previousLocation = null;
                         }
-                        previousLocation = theNear;
+                        previousLocation = theNear; // Store the previous location
+                        // Update the distance display
                         b1.updateDisplayDistance();
                         b2.updateDisplayDistance();
                         b3.updateDisplayDistance();
@@ -175,11 +129,15 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer {
         });
 
         try {
+            // Tells the BeaconService to start looking for beacons that match the passed Region object,
+            // and providing updates on the estimated mDistance every seconds while beacons in the Region are visible.
             beaconManager.startRangingBeaconsInRegion(new Region("myRangingUniqueId", null, null, null));
-        } catch (RemoteException e) {    }
+        } catch (RemoteException e) {  /* Error is detected. */  }
 
     }
 
+    // This method is used to compare which one is the nearest to you and return that object back.
+    // "null" means that cannot detect any device or can detect them but do not know the answer.
     private MyBeacon getMinOne(MyBeacon a, MyBeacon b) {
         if (a != null && b != null) {
             if ((a.distance > 0d && b.distance > 0d) && !(a.distance == b.distance)) {
@@ -211,6 +169,9 @@ class MyBeacon {
     public String name;
     public String macAddress;
     public double distance = 0d; // initially the distance is 0.
+    //public double predistance = 0d;
+
+    // Display reference pointers.
     public TextView displayName;
     public TextView displayDistance;
 
@@ -223,28 +184,39 @@ class MyBeacon {
         displayName.setText(name + " :  ");
     }
 
+    public void updateDistance(Beacon _beacon) {
+        if (_beacon.getBluetoothAddress().equals(this.macAddress)) {
+            distance = _beacon.getDistance(); // Calculate the distance based on RSSI.
+        }
+    }
+
+    /*
     public boolean updateDistance(Beacon _beacon) {
         if (_beacon.getBluetoothAddress().equals(this.macAddress)) {
-            distance = _beacon.getDistance();
+            distance = _beacon.getDistance(); // Calculate the distance based on RSSI.
             return true;
         } else
             return false;
     }
+    */
 
+    /*
     public void updateDistance(Collection<Beacon> beacons) {
         for (Beacon theBeacon : beacons) {
             if (updateDistance(theBeacon))
                 return;
         }
         distance = 0d;
+
     }
+    */
 
     public void updateDisplayDistance() {
         String str;
         if (distance == 0d)
             str = "UNDETECTED";
         else
-            str = String.format("%.2f", distance);
+            str = String.format("%.4f", distance);
         displayDistance.setText(str);
     }
 
@@ -257,6 +229,4 @@ class MyBeacon {
         str += "\n===================================";
         return str;
     }
-
-
 }
