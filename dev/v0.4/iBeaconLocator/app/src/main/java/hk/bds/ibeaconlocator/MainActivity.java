@@ -56,11 +56,9 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer {
         // Init Beacon
         beaconManager = BeaconManager.getInstanceForApplication(this);
         beaconManager.getBeaconParsers().add(new BeaconParser().setBeaconLayout("m:2-3=0215,i:4-19,i:20-21,i:22-23,p:24-24")); // Set the beacon brand
-        //beaconManager.setRssiFilterImplClass(ArmaRssiFilter.class);
-        RangedBeacon.setSampleExpirationMilliseconds(5000);    // The refresh interval
-        beaconManager.setBackgroundScanPeriod(20);
-        beaconManager.setBackgroundBetweenScanPeriod(10);
-        beaconManager.setForegroundBetweenScanPeriod(10);
+        RangedBeacon.setSampleExpirationMilliseconds(1100);    // The refresh interval
+        beaconManager.setBackgroundBetweenScanPeriod(20);
+        beaconManager.setForegroundBetweenScanPeriod(20);
         beaconManager.bind(this);
 
         // Init beacon devices
@@ -93,19 +91,39 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer {
             public void didRangeBeaconsInRegion(Collection<Beacon> beacons, Region region) {
                 // This method will be executed many times according to the size of the refresh interval.
                 // Try to update the distance of the devices
-                if (beacons.size() > 0) {
-                    for (Beacon theBeacon : beacons) {
-                        b1.updateDistance(theBeacon);
-                        b2.updateDistance(theBeacon);
-                        b3.updateDistance(theBeacon);
-                    }
-                    theNear = getMinOne(getMinOne(b1, b2), b3);
+                b1.updateDistance(beacons);
+                b2.updateDistance(beacons);
+                b3.updateDistance(beacons);
+                theNear = getMinOne(getMinOne(b1, b2), b3);
 
-                    // Update Displays
-                    updateDisplay();
-                }
-                //Log.d(TAG, beacons.toString());
-                //Log.d(TAG,this.toString());
+                // Update Displays
+                MainActivity.this.runOnUiThread( new Runnable() {
+                    public void run() {
+                        if (theNear != null && theNear.distance < 0.35) {
+                            // If the near beacon is inside the range, do this action
+                            displayLocation.setText(theNear.name); // Update the largest text.
+
+                            if (theNear != previousLocation) {
+                                // If you just enter the area
+                                String toSpeak = "" + theNear.name;
+                                ttobj.speak(toSpeak, TextToSpeech.QUEUE_FLUSH, null); // Speak
+                            }
+
+                        } else {
+                            // You are not close enough to the near one.
+                            displayLocation.setText("UNCERTAIN");
+                            previousLocation = null;
+                        }
+                        previousLocation = theNear; // Store the previous location
+                        // Update the distance display
+                        b1.updateDisplayDistance();
+                        b2.updateDisplayDistance();
+                        b3.updateDisplayDistance();
+                        b1.toString();
+                        b2.toString();
+                        b3.toString();
+                    }
+                });
             }
         });
 
@@ -115,42 +133,6 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer {
             beaconManager.startRangingBeaconsInRegion(new Region("myRangingUniqueId", null, null, null));
         } catch (RemoteException e) {  /* Error is detected. */  }
 
-    }
-
-    private void updateDisplay() {
-        MainActivity.this.runOnUiThread(new Runnable() {
-            public void run() {
-                if (theNear != null && theNear.distance < 0.30) {
-                    // If the near beacon is inside the range, do this action
-                    displayLocation.setText(theNear.name); // Update the largest text.
-
-                    if (theNear != previousLocation) {
-                        // If you just enter the area
-                        String toSpeak = "" + theNear.name;
-                        ttobj.speak(toSpeak, TextToSpeech.QUEUE_FLUSH, null); // Speak
-                    }
-
-                } else {
-                    // You are not close enough to the near one.
-                    displayLocation.setText("UNCERTAIN");
-                    previousLocation = null;
-                }
-                previousLocation = theNear; // Store the previous location
-                // Update the distance display
-                b1.updateDisplayDistance();
-                b2.updateDisplayDistance();
-                b3.updateDisplayDistance();
-            }
-        });
-    }
-
-
-    public String toString() {
-        String str = "";
-        str += b1.toString();
-        str += b2.toString();
-        str += b3.toString();
-        return str;
     }
 
     // This method is used to compare which one is the nearest to you and return that object back.
@@ -201,13 +183,6 @@ class MyBeacon {
         displayName.setText(name + " :  ");
     }
 
-    public void updateDistance(Beacon _beacon) {
-        if (_beacon.getBluetoothAddress().equals(this.macAddress)) {
-            distance = _beacon.getDistance(); // Calculate the distance based on RSSI.
-        }
-    }
-
-    /*
     public boolean updateDistance(Beacon _beacon) {
         if (_beacon.getBluetoothAddress().equals(this.macAddress)) {
             distance = _beacon.getDistance(); // Calculate the distance based on RSSI.
@@ -215,9 +190,7 @@ class MyBeacon {
         } else
             return false;
     }
-    */
 
-    /*
     public void updateDistance(Collection<Beacon> beacons) {
         for (Beacon theBeacon : beacons) {
             if (updateDistance(theBeacon))
@@ -226,7 +199,6 @@ class MyBeacon {
         distance = 0d;
 
     }
-    */
 
     public void updateDisplayDistance() {
         String str;
